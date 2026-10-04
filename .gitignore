@@ -1,0 +1,8 @@
+# 组件运行时在自己文件夹里生成的个人状态文件，不进仓库
+widget/go-tsumego.widget/config.json
+widget/go-tsumego.widget/state.json
+widget/go-tsumego.widget/history.json
+
+.DS_Store
+__pycache__/
+*.pyc
