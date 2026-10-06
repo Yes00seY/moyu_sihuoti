@@ -78,7 +78,7 @@ cp -R <下载到的仓库路径>/widget/go-tsumego.widget \
 ## 项目结构
 
 ```
-go-tsumego-badge/
+moyu_sihuoti/
 ├── widget/go-tsumego.widget/   ← 真正要安装的组件（自包含）
 │   ├── index.jsx                 组件界面（Übersicht/React）
 │   ├── engine.py                 后端逻辑：选题、判对错、存设置
