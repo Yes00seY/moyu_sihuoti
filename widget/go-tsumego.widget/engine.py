@@ -16,9 +16,10 @@
     python3 engine.py prev                     切到上一题
     python3 engine.py config                   取当前设置 + 所有可选题库列表
     python3 engine.py setconfig '<json>'       保存设置，并立刻按新设置重抽今日题目
+    python3 engine.py setpos <x> <y>           记住组件在屏幕上的位置（拖动后调用）
 
 所有状态都存在这个脚本自己所在的文件夹里（config.json / state.json /
-history.json），不碰系统其它地方，卸载组件时把整个文件夹删掉就是干净卸载。
+history.json / pos.json），不碰系统其它地方，卸载组件时把整个文件夹删掉就是干净卸载。
 """
 import json
 import random
@@ -31,6 +32,7 @@ DATA_DIR = HERE / "data"
 CONFIG_PATH = HERE / "config.json"
 STATE_PATH = HERE / "state.json"
 HISTORY_PATH = HERE / "history.json"
+POS_PATH = HERE / "pos.json"
 
 DAILY_RESET_HOUR = 8  # 每天几点刷新一批新题（本地时间）
 HISTORY_LIMIT = 2000  # 最近做过的题里，记多少道用来避免短期内重复
@@ -210,6 +212,7 @@ def cmd_state():
     state = ensure_today_state()
     out = summarize_state(state)
     out["problem"] = current_problem_payload(state)
+    out["pos"] = load_json(POS_PATH, None)
     print(json.dumps(out, ensure_ascii=False))
 
 
@@ -272,6 +275,11 @@ def cmd_setconfig(raw_json):
     cmd_state()
 
 
+def cmd_setpos(x, y):
+    save_json(POS_PATH, {"x": int(x), "y": int(y)})
+    print(json.dumps({"ok": True}))
+
+
 def main():
     if len(sys.argv) < 2:
         print(json.dumps({"error": "no command"}))
@@ -292,6 +300,8 @@ def main():
         cmd_config()
     elif cmd == "setconfig" and len(args) >= 1:
         cmd_setconfig(args[0])
+    elif cmd == "setpos" and len(args) >= 2:
+        cmd_setpos(args[0], args[1])
     else:
         print(json.dumps({"error": f"unknown command: {cmd}"}))
 

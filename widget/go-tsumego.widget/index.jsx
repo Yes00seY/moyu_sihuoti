@@ -28,6 +28,7 @@ export const initialState = {
   settingsOpen: false,
   settingsDraft: null, // {config, collections} —— 设置面板草稿
   settingsSaving: false,
+  pos: null, // {x, y} 组件在屏幕上的位置；null 表示用默认位置（右上角）
 }
 
 function safeParse(text) {
@@ -40,6 +41,8 @@ function safeParse(text) {
 
 export const updateState = (event, prev) => {
   switch (event.type) {
+    case "MOVE":
+      return { ...prev, pos: { x: event.x, y: event.y } }
     case "LOADED": {
       const d = event.data
       if (!d || d.error) {
@@ -51,6 +54,7 @@ export const updateState = (event, prev) => {
         error: null,
         summary: { date: d.date, total: d.total, done: d.done, correct: d.correct },
         problem: d.problem,
+        pos: prev.pos || d.pos || null,
       }
     }
     case "ANSWERED": {
@@ -264,7 +268,7 @@ function Board({ problem, onPick, disabled }) {
 
 // ------------------------------------------------------------------ 设置面板
 
-function SettingsPanel({ draft, saving, dispatch, onSave }) {
+function SettingsPanel({ startDrag, draft, saving, dispatch, onSave }) {
   const byTier = {}
   draft.collections.forEach((c) => {
     byTier[c.tier] = byTier[c.tier] || []
@@ -274,7 +278,7 @@ function SettingsPanel({ draft, saving, dispatch, onSave }) {
 
   return (
     <div className={styles.settingsWrap}>
-      <div className={styles.settingsHeader}>
+      <div className={styles.settingsHeader} onMouseDown={startDrag}>
         <span>选择题库</span>
         <span
           className={styles.closeBtn}
@@ -345,7 +349,7 @@ function SettingsPanel({ draft, saving, dispatch, onSave }) {
 
 // ------------------------------------------------------------------ 主渲染
 
-export const render = (state, dispatch) => {
+const renderInner = (state, dispatch, startDrag) => {
   const {
     loading,
     error,
@@ -384,6 +388,7 @@ export const render = (state, dispatch) => {
     return (
       <div className={styles.wrap}>
         <SettingsPanel
+          startDrag={startDrag}
           draft={settingsDraft}
           saving={settingsSaving}
           dispatch={dispatch}
@@ -414,7 +419,7 @@ export const render = (state, dispatch) => {
   return (
     <div className={styles.wrap}>
       <div className={styles.header}>
-        <span className={styles.bookLabel}>
+        <span className={styles.bookLabel} onMouseDown={startDrag} title="按住拖动位置">
           {problem.tier.replace(/^\d[a-z]\.\s*/, "")} · {problem.book}
         </span>
         <span className={styles.gear} onClick={openSettings}>
@@ -448,6 +453,51 @@ export const render = (state, dispatch) => {
   )
 }
 
+
+// ------------------------------------------------------------------ 位置与拖动
+
+const DEFAULT_TOP = 50
+const DEFAULT_RIGHT = 30
+const WIDGET_WIDTH = 328
+
+const defaultPos = () => ({
+  x: Math.max(0, window.innerWidth - WIDGET_WIDTH - DEFAULT_RIGHT),
+  y: DEFAULT_TOP,
+})
+
+export const render = (state, dispatch) => {
+  const pos = state.pos || defaultPos()
+
+  const startDrag = (e) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const startX = e.clientX
+    const startY = e.clientY
+    const origin = pos
+    let last = origin
+    const onMove = (ev) => {
+      last = {
+        x: Math.max(0, origin.x + ev.clientX - startX),
+        y: Math.max(0, origin.y + ev.clientY - startY),
+      }
+      dispatch({ type: "MOVE", x: last.x, y: last.y })
+    }
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove)
+      document.removeEventListener("mouseup", onUp)
+      engine("setpos", Math.round(last.x), Math.round(last.y))
+    }
+    document.addEventListener("mousemove", onMove)
+    document.addEventListener("mouseup", onUp)
+  }
+
+  return (
+    <div style={{ position: "absolute", left: pos.x, top: pos.y }}>
+      {renderInner(state, dispatch, startDrag)}
+    </div>
+  )
+}
+
 // ------------------------------------------------------------------ 样式
 
 const styles = {
@@ -468,6 +518,7 @@ const styles = {
     margin-bottom: 4px;
   `,
   bookLabel: css`
+    cursor: grab;
     font-size: 11.5px;
     opacity: 0.6;
     overflow: hidden;
@@ -535,6 +586,7 @@ const styles = {
     max-height: 420px;
   `,
   settingsHeader: css`
+    cursor: grab;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -617,8 +669,8 @@ const styles = {
   `,
 }
 
-// 组件在屏幕上的位置——改这里的 top / right 挪到你想要的地方
+// 位置由组件内部管理：鼠标按住顶部标题栏拖动即可，松手后会记住位置
 export const className = `
-  top: 50px
-  right: 30px
+  top: 0
+  left: 0
 `

@@ -6,3 +6,4 @@ widget/go-tsumego.widget/history.json
 .DS_Store
 __pycache__/
 *.pyc
+widget/go-tsumego.widget/pos.json
