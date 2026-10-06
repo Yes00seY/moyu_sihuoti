@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-go-tsumego-badge 的后端逻辑。
+摸鱼死活题 (moyu_sihuoti) 的后端逻辑。
 
 不依赖任何第三方库，只用 Python 标准库——这样用户的 Mac 只要有
 系统自带的 python3（macOS 自带，或 `brew install python3`）就能跑，

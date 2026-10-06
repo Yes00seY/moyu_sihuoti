@@ -1,4 +1,4 @@
-# 摸鱼死活题 (moyu-sihuoti)
+# 摸鱼死活题 (moyu_sihuoti)
 
 一个放在 Mac 桌面上的围棋死活题/手筋题练习小组件。每天早上 8 点自动
 刷新一批新题，直接在棋盘上点一下作答，立刻看对错——适合上班、学习间隙
@@ -9,6 +9,17 @@
 > click directly on the board to answer and get instant feedback. Built on
 > [Übersicht](https://tracesof.net/uebersicht/). See below for English
 > install notes.
+
+> ### 题库来源与致谢
+>
+> **本项目没有自己创作任何题目。** 12,304 道题全部来自开源项目
+> **[Ten Thousand Tsumego](https://github.com/sanderland/tsumego)**
+> （作者 **Sander Land**，MIT 协议），其中大量原始题目文件由
+> **TsumegoDojo** 收集整理；题目本身出自赵治勲、石田章、山田规三生、
+> 前田陈尔、李昌镐、吴清源、瀬越宪作、橋本宇太郎等历代棋手与作者的
+> 著作。本项目只做了两件事：格式转换，以及做一个桌面小组件来练习。
+> 完整署名见 [NOTICE.md](./NOTICE.md)。
+> 本项目为非官方衍生作品，与上述作者和项目无隶属关系。
 
 ![示例题目](docs/sample-problem.png)
 
@@ -89,9 +100,13 @@ go-tsumego-badge/
 
 ## 数据来源
 
-题目数据转换自开源项目 [sanderland/tsumego](https://github.com/sanderland/tsumego)
-（MIT 协议），详见 [NOTICE.md](./NOTICE.md)。如果想自己重新生成/更新
-`data/` 目录，可以参考 `scripts/convert.py` 里的说明。
+- 上游项目：[Ten Thousand Tsumego](https://github.com/sanderland/tsumego)
+  （Sander Land，MIT）。题库的收集、整理功劳属于该项目作者和
+  TsumegoDojo，不属于本项目。
+- 本项目所做的处理：把上游的 JSON 格式转换成组件使用的紧凑坐标格式，
+  剔除了上游自己标注"答案可能不正确"的约 336 道题，没有改动任何题目
+  内容或正解。转换过程可用 `scripts/convert.py` 复现。
+- 详细署名与授权说明见 [NOTICE.md](./NOTICE.md)。
 
 ## 贡献
 
