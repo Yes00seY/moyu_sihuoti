@@ -48,6 +48,38 @@ def sgf_to_colrow(code):
     return [col, row]
 
 
+def has_zero_liberty_group(black, white, sz):
+    """局面里只要有一块棋没有气，就是围棋规则下不可能出现的局面（数据有误），整题剔除。"""
+    st = {}
+    for p in black:
+        if p:
+            st[tuple(p)] = "B"
+    for p in white:
+        if p:
+            st[tuple(p)] = "W"
+    seen = set()
+    for pt, color in st.items():
+        if pt in seen:
+            continue
+        seen.add(pt)
+        stack = [pt]
+        has_lib = False
+        while stack:
+            x, y = stack.pop()
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                q = (x + dx, y + dy)
+                if not (0 <= q[0] < sz and 0 <= q[1] < sz):
+                    continue
+                if q not in st:
+                    has_lib = True
+                elif st[q] == color and q not in seen:
+                    seen.add(q)
+                    stack.append(q)
+        if not has_lib:
+            return True
+    return False
+
+
 def convert_one(path):
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
@@ -62,6 +94,9 @@ def convert_one(path):
     sz = int(data.get("SZ", 19))
     black = [sgf_to_colrow(c) for c in data.get("AB", [])]
     white = [sgf_to_colrow(c) for c in data.get("AW", [])]
+
+    if has_zero_liberty_group(black, white, sz):
+        return None  # 局面本身不合法（有无气的棋子），剔除
 
     turn = "W" if str(data.get("C", "")).startswith("White") else "B"
 
@@ -102,6 +137,10 @@ def convert_one(path):
         ],
         "w": x1 - x0 + 1,
         "h": y1 - y0 + 1,
+        # 裁剪区域左上角在原棋盘上的位置、原棋盘路数——对局时要还原成整盘坐标
+        "ox": x0,
+        "oy": y0,
+        "sz": sz,
     }
 
 

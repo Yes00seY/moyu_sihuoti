@@ -28,6 +28,8 @@ export const initialState = {
   settingsOpen: false,
   settingsDraft: null, // {config, collections} —— 设置面板草稿
   settingsSaving: false,
+  thinking: false, // 正在等对手（KataGo）应手
+  notice: null, // 一次性提示：illegal / ai 状态 {kind, text}
   pos: null, // {x, y} 组件在屏幕上的位置；null 表示用默认位置（右上角）
 }
 
@@ -52,23 +54,63 @@ export const updateState = (event, prev) => {
         ...prev,
         loading: false,
         error: null,
+        // 后台定时刷新不要把对手正在思考的状态或提示冲掉
+        thinking: event.background ? prev.thinking : false,
+        notice: event.background ? prev.notice : null,
         summary: { date: d.date, total: d.total, done: d.done, correct: d.correct },
         problem: d.problem,
         pos: prev.pos || d.pos || null,
       }
     }
-    case "ANSWERED": {
+    case "PLAYING":
+      return { ...prev, thinking: true, notice: null }
+    case "PLAYED": {
       const d = event.data
-      if (!d || d.error || !prev.problem) return prev
+      if (!d || d.error || !prev.problem) return { ...prev, thinking: false }
+      const g = d.graded
       const alreadyDone = prev.problem.done
+      let notice = null
+      if (d.illegal) {
+        const why = { occupied: "这里已经有子了", suicide: "这里是禁入点（自杀）", ko: "打劫，不能马上提回" }
+        notice = { kind: "illegal", text: why[d.illegal] || "这里不能下" }
+      } else if (d.ai) {
+        if (d.ai.status === "unavailable") {
+          notice = { kind: "noai", text: "没检测到 KataGo，对手不会应手（见 README）" }
+        } else if (d.ai.status === "tenuki") {
+          notice = { kind: "info", text: "对手没有在这一带应，局部到此为止" }
+        } else if (d.ai.status === "pass") {
+          notice = { kind: "info", text: "对手停手了" }
+        }
+      }
       return {
         ...prev,
-        problem: { ...prev.problem, done: true, correct: d.correct, solution: d.solution },
-        summary: prev.summary && {
-          ...prev.summary,
-          done: prev.summary.done + (alreadyDone ? 0 : 1),
-          correct: prev.summary.correct + (!alreadyDone && d.correct ? 1 : 0),
+        thinking: false,
+        notice,
+        problem: {
+          ...prev.problem,
+          black: d.black,
+          white: d.white,
+          lastMove: d.lastMove,
+          moveCount: d.moveCount,
+          ...(g ? { done: true, correct: g.correct, solution: g.solution } : {}),
         },
+        summary:
+          g && prev.summary
+            ? {
+                ...prev.summary,
+                done: prev.summary.done + (alreadyDone ? 0 : 1),
+                correct: prev.summary.correct + (!alreadyDone && g.correct ? 1 : 0),
+              }
+            : prev.summary,
+      }
+    }
+    case "RESET": {
+      const d = event.data
+      if (!d || d.error || !prev.problem) return prev
+      return {
+        ...prev,
+        notice: null,
+        problem: { ...prev.problem, black: d.black, white: d.white, lastMove: null, moveCount: 0 },
       }
     }
     case "OPEN_SETTINGS":
@@ -134,7 +176,9 @@ export const updateState = (event, prev) => {
 }
 
 function refresh(dispatch) {
-  engine("state").then((out) => dispatch({ type: "LOADED", data: safeParse(out) }))
+  engine("state").then((out) =>
+    dispatch({ type: "LOADED", data: safeParse(out), background: true })
+  )
 }
 
 // 不用 Übersicht 的 command/refreshFrequency 轮询机制（那套是给"跑一条
@@ -157,7 +201,7 @@ function cellSizeFor(w, h) {
 }
 
 function Board({ problem, onPick, disabled }) {
-  const { w, h, black, white, solution } = problem
+  const { w, h, black, white, solution, lastMove } = problem
   const CELL = cellSizeFor(w, h)
   const PAD = CELL
   const pxW = PAD * 2 + (w - 1) * CELL
@@ -238,8 +282,24 @@ function Board({ problem, onPick, disabled }) {
   })
 
   const marks = []
+  const occupied = new Set([...black, ...white].map(([x, y]) => `${x},${y}`))
+  if (lastMove) {
+    const onBlack = black.some(([x, y]) => x === lastMove[0] && y === lastMove[1])
+    marks.push(
+      <circle
+        key="last"
+        cx={PAD + lastMove[0] * CELL}
+        cy={PAD + lastMove[1] * CELL}
+        r={stoneR * 0.4}
+        fill="none"
+        stroke={onBlack ? "#f3f1e9" : "#2b2b2b"}
+        strokeWidth="1.5"
+      />
+    )
+  }
   if (solution) {
     solution.forEach((s, i) => {
+      if (occupied.has(`${s.x},${s.y}`)) return
       const correct = solutionSet.has(`${s.x},${s.y}`)
       marks.push(
         <circle
@@ -361,6 +421,8 @@ const renderInner = (state, dispatch, startDrag) => {
     settingsOpen,
     settingsDraft,
     settingsSaving,
+    thinking,
+    notice,
   } = state
 
   const openSettings = () => {
@@ -378,10 +440,16 @@ const renderInner = (state, dispatch, startDrag) => {
   }
 
   const pick = (x, y) => {
-    if (!problem || problem.done) return
-    engine("answer", problem.id, x, y).then((out) => {
-      dispatch({ type: "ANSWERED", data: safeParse(out) })
+    if (!problem || thinking) return
+    dispatch({ type: "PLAYING" })
+    engine("play", problem.id, x, y).then((out) => {
+      dispatch({ type: "PLAYED", data: safeParse(out) })
     })
+  }
+
+  const resetBoard = () => {
+    if (!problem || thinking) return
+    engine("reset", problem.id).then((out) => dispatch({ type: "RESET", data: safeParse(out) }))
   }
 
   const goNext = () => engine("next").then((out) => dispatch({ type: "LOADED", data: safeParse(out) }))
@@ -435,18 +503,23 @@ const renderInner = (state, dispatch, startDrag) => {
       </div>
 
       <div className={styles.boardArea}>
-        <Board problem={problem} onPick={pick} disabled={answered} />
+        <Board problem={problem} onPick={pick} disabled={thinking || (problem.moveCount > 0 && notice && notice.kind === "noai")} />
       </div>
 
       <div className={styles.feedback}>
-        {!answered && <span className={styles.hint}>{problem.turn === "B" ? "黑先" : "白先"}，点棋盘落子</span>}
         {answered && correct && <span className={styles.correct}>✓ 正确</span>}
         {answered && !correct && <span className={styles.wrong}>✗ 差一点，红点是正解</span>}
+        {!answered && !thinking && <span className={styles.hint}>{problem.turn === "B" ? "黑先" : "白先"}，点棋盘落子</span>}
+        {thinking && <span className={styles.hint}>对手思考中…</span>}
+        {!thinking && notice && <div className={styles.notice}>{notice.text}</div>}
       </div>
 
       <div className={styles.controls}>
         <button className={styles.navBtn} onClick={goPrev}>
           上一题
+        </button>
+        <button className={styles.navBtn} onClick={resetBoard} disabled={!problem.moveCount}>
+          重摆
         </button>
         <button className={styles.navBtn} onClick={goNext}>
           下一题
@@ -544,8 +617,13 @@ const styles = {
     justify-content: center;
     margin: 4px 0;
   `,
+  notice: css`
+    margin-top: 2px;
+    font-size: 11.5px;
+    opacity: 0.7;
+  `,
   feedback: css`
-    min-height: 20px;
+    min-height: 38px;
     text-align: center;
     font-size: 13px;
     margin-top: 6px;
@@ -576,6 +654,10 @@ const styles = {
     font-size: 12.5px;
     cursor: pointer;
     text-align: center;
+    &:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
   `,
   hintSmall: css`
     font-size: 11px;

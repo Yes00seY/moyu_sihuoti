@@ -7,3 +7,5 @@ widget/go-tsumego.widget/history.json
 __pycache__/
 *.pyc
 widget/go-tsumego.widget/pos.json
+widget/go-tsumego.widget/attempt.json
+widget/go-tsumego.widget/katago.cfg
