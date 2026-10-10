@@ -162,14 +162,16 @@ function Board({ problem, onPick, disabled }) {
   const PAD = CELL
   const pxW = PAD * 2 + (w - 1) * CELL
   const pxH = PAD * 2 + (h - 1) * CELL
+  // 组件内容区宽 272px；棋盘太宽（如 19 路整行）就整体等比缩小，避免右侧被裁掉
+  const scale = Math.min(1, 272 / pxW)
 
   const solutionSet = new Set((solution || []).map((s) => `${s.x},${s.y}`))
 
   const handleClick = (e) => {
     if (disabled) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const px = e.clientX - rect.left
-    const py = e.clientY - rect.top
+    const px = (e.clientX - rect.left) / scale
+    const py = (e.clientY - rect.top) / scale
     let x = Math.round((px - PAD) / CELL)
     let y = Math.round((py - PAD) / CELL)
     x = Math.max(0, Math.min(w - 1, x))
@@ -253,8 +255,9 @@ function Board({ problem, onPick, disabled }) {
 
   return (
     <svg
-      width={pxW}
-      height={pxH}
+      width={pxW * scale}
+      height={pxH * scale}
+      viewBox={`0 0 ${pxW} ${pxH}`}
       onClick={handleClick}
       style={{ cursor: disabled ? "default" : "pointer", display: "block" }}
     >
